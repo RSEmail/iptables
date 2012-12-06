@@ -24,8 +24,11 @@ execute "rebuild-iptables" do
   action :nothing
 end
 
-directory "/etc/iptables.d" do
-  action :create
+%w{filter nat}.each do |table|
+  directory "/etc/iptables.d/#{table}" do
+    action :create
+    recursive true
+  end
 end
 
 cookbook_file "/usr/sbin/rebuild-iptables" do

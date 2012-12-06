@@ -24,15 +24,16 @@ use strict;
 
 use Getopt::Long qw(GetOptions);
 
-# Path to the iptables template area.
-our $TEMPLATE = '/etc/iptables.d';
+# Paths to the iptables template area.
+our $FILTER_TEMPLATE = '/etc/iptables.d/filter';
+our $NAT_TEMPLATE = '/etc/iptables.d/nat';
 
 ##############################################################################
 # Installation
 ##############################################################################
 
 # Return the prefix
-sub prefix {
+sub filter_prefix {
   my $data;
   ( $data = <<'END_OF_PREFIX' ) =~ s/^\s+//gm;
         *filter
@@ -47,8 +48,20 @@ END_OF_PREFIX
   return $data;
 }
 
+sub nat_prefix {
+  my $data;
+  ( $data = <<'END_OF_PREFIX' ) =~ s/^\s+//gm;
+    *nat
+    :PREROUTING ACCEPT
+    :POSTROUTING ACCEPT
+    :OUTPUT ACCEPT
+END_OF_PREFIX
+
+  return $data;
+}
+
 # Return the suffix
-sub suffix {
+sub filter_suffix {
   my $data;
   ( $data = <<'END_OF_SUFFIX' ) =~ s/^\s+//gm;
         # Rejects all remaining connections with port-unreachable errors.
@@ -61,16 +74,12 @@ END_OF_SUFFIX
   return $data;
 }
 
-sub snat {
-  my $data = "";
-  if ( -f "/etc/iptables.snat" ) {
-    open( SNAT, "<", "/etc/iptables.snat" )
-      or die "$0: cannot open /etc/iptables.snat: $!\n";
-    while (<SNAT>) {
-      $data = $data . $_;
-    }
-    close(SNAT);
-  }
+sub nat_suffix {
+  my $data;
+  ( $data = <<'END_OF_SUFFIX' ) =~ s/^\s+//gm;
+    COMMIT
+END_OF_SUFFIX
+
   return $data;
 }
 
@@ -79,15 +88,14 @@ sub snat {
 sub read_iptables {
   my ($file) = @_;
   my @data;
-  $file = $TEMPLATE . '/' . $file unless $file =~ m%^\.?/%;
   local *MODULE;
   open( MODULE, '<', $file ) or die "$0: cannot open $file: $!\n";
   local $_;
   while (<MODULE>) {
     if (/^\s*include\s+(\S+)$/) {
       my $included = $1;
-      $included = $TEMPLATE . '/' . $included
-        unless $included =~ m%^\.?/%;
+      #$included = $path . '/' . $included
+      #  unless $included =~ m%^\.?/%;
       if ( $file eq $included ) {
         die "$0: include loop in $file, line $.\n";
       }
@@ -155,29 +163,43 @@ if ($help) {
   print "Feeding myself to perldoc, please wait....\n";
   exec( 'perldoc', '-t', $fullpath );
 } elsif ($version) {
-  my $version = join( ' ', ( split( ' ', $ID ) )[ 1 .. 3 ] );
+  $version = join( ' ', ( split( ' ', $ID ) )[ 1 .. 3 ] );
   $version =~ s/,v\b//;
   $version =~ s/(\S+)$/($1)/;
   $version =~ tr%/%-%;
   print $version, "\n";
   exit;
 }
-my @modules;
+my @filter_modules;
+my @nat_modules;
 
 if ( -d '/etc/iptables.d' ) {
-  @modules = </etc/iptables.d/*>;
+  @filter_modules = <$FILTER_TEMPLATE/*> if -d $FILTER_TEMPLATE;
+  @nat_modules = <$NAT_TEMPLATE/*> if -d $NAT_TEMPLATE;
 }
 
 # Concatenate everything together.
 my @data;
-push( @data, prefix() );
-push( @data, "\n" );
-for my $module (@modules) {
-  push( @data, read_iptables($module) );
-  push( @data, "\n" );
+
+# Filter table rules
+if (@filter_modules) {
+    push( @data, filter_prefix() );
+    push( @data, "\n" );
+    for my $module (@filter_modules) {
+	push( @data, read_iptables($module) );
+	push( @data, "\n" );
+    }
+    push( @data, filter_suffix() );
 }
-push( @data, suffix() );
-push( @data, snat() );
+
+# NAT table rules
+if (@nat_modules) {
+  push( @data, ( nat_prefix(), "\n" ) );
+  for my $module (@nat_modules) {
+    push( @data, ( read_iptables($module), "\n" ) );
+  }
+  push( @data, ( nat_suffix(), "\n" ) );
+}
 
 if ( -f '/etc/debian_version' ) {
   install_debian(@data);
@@ -205,9 +227,10 @@ rebuild-iptables [B<-hv>]
 =head1 DESCRIPTION
 
 B<rebuild-iptables> constructs an iptables configuration file by concatenating
-various modules found in F</etc/iptables.d>.  The resulting iptables
-configuration file is written to the appropriate file for either Red Hat or
-Debian (determined automatically) and iptables is restarted.
+various modules found in F</etc/iptables.d/table> (where table is either filter
+and/or nat).  The resulting iptables configuration file is written to the
+appropriate file for either Red Hat or Debian (determined automatically) and
+iptables is restarted.
 
 Each module is just a text file located in the directory mentioned above that
 contains one or more iptables configuration lines (basically the arguments to

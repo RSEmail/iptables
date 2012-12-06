@@ -1,0 +1,10 @@
+cookbook "iptables" do
+    configuration "default"
+
+    preflight_command <<-END
+knife cookbook metadata -o .. iptables
+    END
+end
+
+
+# vim:et sw=4 ts=4 fdm=marker ft=ruby

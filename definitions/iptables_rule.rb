@@ -17,10 +17,11 @@
 # limitations under the License.
 #
 
-define :iptables_rule, :enable => true, :source => nil, :variables => {}, :cookbook => nil do
+define :iptables_rule, :enable => true, :source => nil,
+  :variables => {}, :cookbook => nil, :table => "filter" do
   template_source = params[:source] ? params[:source] : "#{params[:name]}.erb"
   
-  template "/etc/iptables.d/#{params[:name]}" do
+  template "/etc/iptables.d/#{params[:table]}/#{params[:name]}" do
     source template_source
     mode 0644
     cookbook params[:cookbook] if params[:cookbook]

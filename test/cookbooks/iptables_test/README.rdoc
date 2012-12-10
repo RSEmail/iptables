@@ -1,0 +1,14 @@
+= Description
+
+Used by test-kitchen[https://github.com/opscode/test-kitchen] to run acceptance
+tests for the iptables cookbook.
+
+= Requirements
+
+iptables 0.1.1
+
+= Attributes
+
+= Usage
+
+Run <tt>kitchen test</tt> from the root directory of this repo.

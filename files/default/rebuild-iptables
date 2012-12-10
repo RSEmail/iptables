@@ -87,6 +87,7 @@ END_OF_SUFFIX
 # the file as an array.
 sub read_iptables {
   my ($file) = @_;
+  my ($path) = ($file =~ m|^(.*)/.*$|);
   my @data;
   local *MODULE;
   open( MODULE, '<', $file ) or die "$0: cannot open $file: $!\n";
@@ -94,8 +95,8 @@ sub read_iptables {
   while (<MODULE>) {
     if (/^\s*include\s+(\S+)$/) {
       my $included = $1;
-      #$included = $path . '/' . $included
-      #  unless $included =~ m%^\.?/%;
+      $included = $path . '/' . $included 
+        unless $included =~ m%^\.?/%;
       if ( $file eq $included ) {
         die "$0: include loop in $file, line $.\n";
       }
